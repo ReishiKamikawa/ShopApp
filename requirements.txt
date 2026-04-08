@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+motor>=3.1.0
+python-jose[cryptography]
+passlib[bcrypt,argon2]
+python-multipart
+pydantic
+pydantic-settings
+pymongo
+redis[hiredis]
+setuptools
+
+
+
+

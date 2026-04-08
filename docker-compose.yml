@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: shopapp-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: shopapp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopapp-api
+    ports:
+      - "8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MONGODB_URL: mongodb://admin:password@mongodb:27017
+      DATABASE_NAME: shopapp
+      REDIS_URL: redis://redis:6379
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-in-production}
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopapp-worker
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MONGODB_URL: mongodb://admin:password@mongodb:27017
+      DATABASE_NAME: shopapp
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - .:/app
+    command: python -m app.workers.event_worker
+
+volumes:
+  mongodb_data:
+  redis_data:
