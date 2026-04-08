@@ -10,11 +10,14 @@ class CartService:
         self.cart_repository = cart_repository
         self.product_repository = product_repository
 
-    async def get_cart(self, user_id: str) -> Optional[CartResponse]:
+    async def get_cart(self, user_id: str) -> CartResponse:
         cart = await self.cart_repository.get_by_user_id(user_id)
         if cart:
+            cart["user_id"] = str(cart["user_id"])
+            for item in cart.get("items", []):
+                item["product_id"] = str(item["product_id"])
             return CartResponse(**cart)
-        return None
+        return CartResponse(id=None, user_id=user_id, items=[], updated_at=None)
 
     async def add_to_cart(self, user_id: str, item_data: CartItemCreate) -> CartResponse:
         # Validate product exists
@@ -23,11 +26,17 @@ class CartService:
             raise ValueError("Product not found")
         
         cart = await self.cart_repository.add_item(user_id, item_data.product_id, item_data.quantity)
+        cart["user_id"] = str(cart["user_id"])
+        for item in cart.get("items", []):
+            item["product_id"] = str(item["product_id"])
         return CartResponse(**cart)
 
     async def remove_from_cart(self, user_id: str, product_id: str) -> CartResponse:
         cart = await self.cart_repository.remove_item(user_id, product_id)
         if cart:
+            cart["user_id"] = str(cart["user_id"])
+            for item in cart.get("items", []):
+                item["product_id"] = str(item["product_id"])
             return CartResponse(**cart)
         # Return empty cart
         return CartResponse(id=None, user_id=user_id, items=[], updated_at=None)

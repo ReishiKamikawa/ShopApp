@@ -136,7 +136,7 @@ class CartItemResponse(BaseModel):
 
 
 class CartResponse(BaseModel):
-    id: PyObjectId = Field(alias="_id", example="507f1f77bcf86cd799439011")
+    id: Optional[PyObjectId] = Field(default=None, alias="_id", example="507f1f77bcf86cd799439011")
     user_id: str = Field(..., example="507f1f77bcf86cd799439012")
     items: List[CartItemResponse]
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
@@ -170,7 +170,7 @@ class OrderResponse(BaseModel):
 # Review schemas
 class ReviewCreate(BaseModel):
     product_id: str = Field(..., example="507f1f77bcf86cd799439011", description="Product ID to review")
-    rating: int = Field(..., example=5, description="Rating from 1-5")
+    rating: int = Field(..., gt=0, le=5, example=5, description="Rating from 1-5 (must be between 1 and 5)")
     comment: str = Field(..., example="Great product!", description="Review comment")
 
     class Config:

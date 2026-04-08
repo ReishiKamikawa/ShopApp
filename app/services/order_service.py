@@ -78,11 +78,15 @@ class OrderService:
         return OrderResponse(**order)
 
     async def get_order_by_id(self, order_id: str) -> Optional[OrderResponse]:
-        order = await self.order_repository.get_by_id(order_id)
-        if order:
-            order["user_id"] = str(order["user_id"])
-            return OrderResponse(**order)
-        return None
+        try:
+            order = await self.order_repository.get_by_id(order_id)
+            if order:
+                order["user_id"] = str(order["user_id"])
+                return OrderResponse(**order)
+            return None
+        except Exception as e:
+            # Invalid ObjectId format
+            raise ValueError(f"Invalid order ID format: {str(e)}")
 
     async def get_user_orders(self, user_id: str, page: int = 1, limit: int = 10) -> List[OrderResponse]:
         skip = (page - 1) * limit

@@ -24,3 +24,4 @@ test_api_comprehensive_10x.py
 test_api.py
 test_results_10x.txt
 test_simple.py
+/__pycache__

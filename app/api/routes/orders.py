@@ -66,10 +66,15 @@ async def get_order(
     - Non-existent order: Returns 404
     - Invalid order ID format: Returns 400
     """
-    order = await service.get_order_by_id(order_id)
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    return order
+    try:
+        order = await service.get_order_by_id(order_id)
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return order
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid order ID format: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid order ID format")
 
 
 @router.get("", response_model=list, summary="List user orders")
