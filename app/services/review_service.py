@@ -4,11 +4,13 @@ from bson import ObjectId
 
 from app.repositories.review_repository import ReviewRepository
 from app.schemas import ReviewCreate, ReviewResponse
+from app.db.redis import get_redis
 
 
 class ReviewService:
     def __init__(self, review_repository: ReviewRepository):
         self.review_repository = review_repository
+        self.redis = get_redis()
 
     async def create_review(self, user_id: str, review_data: ReviewCreate) -> ReviewResponse:
         # Check if user already reviewed this product
@@ -26,6 +28,8 @@ class ReviewService:
         # Convert ObjectIds to strings
         review["user_id"] = str(review["user_id"])
         review["product_id"] = str(review["product_id"])
+        # Publish event
+        await self.redis.publish("review.created", f"{review['_id']}")
         return ReviewResponse(**review)
 
     async def get_review_by_id(self, review_id: str) -> Optional[ReviewResponse]:
@@ -58,4 +62,7 @@ class ReviewService:
         return result
 
     async def delete_review(self, review_id: str) -> bool:
-        return await self.review_repository.delete(review_id)
+        success = await self.review_repository.delete(review_id)
+        if success:
+            await self.redis.publish("review.deleted", review_id)
+        return success

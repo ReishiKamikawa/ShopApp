@@ -107,4 +107,7 @@ class OrderService:
         return result
 
     async def update_order_status(self, order_id: str, status: str) -> bool:
-        return await self.order_repository.update(order_id, {"status": status})
+        success = await self.order_repository.update(order_id, {"status": status})
+        if success:
+            await self.redis.publish("order.updated", order_id)
+        return success

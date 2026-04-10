@@ -25,3 +25,11 @@ test_api.py
 test_results_10x.txt
 test_simple.py
 /__pycache__
+
+# Environments
+.env
+.env.*
+!.env.example
+.env
+/results
+test_email_only.py

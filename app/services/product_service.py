@@ -14,6 +14,8 @@ class ProductService:
         product = await self.product_repository.create(product_data.dict())
         # Invalidate cache
         await self._invalidate_product_cache()
+        # Publish event
+        await self.redis.publish("product.created", f"{product['_id']}")
         return ProductResponse(**product)
 
     async def get_product_by_id(self, product_id: str) -> Optional[ProductResponse]:
@@ -62,12 +64,16 @@ class ProductService:
         if success:
             # Invalidate cache
             await self._invalidate_product_cache(product_id)
+            # Publish event
+            await self.redis.publish("product.updated", product_id)
         return success
 
     async def delete_product(self, product_id: str) -> bool:
         success = await self.product_repository.delete(product_id)
         if success:
             await self._invalidate_product_cache(product_id)
+            # Publish event
+            await self.redis.publish("product.deleted", product_id)
         return success
 
     async def _invalidate_product_cache(self, product_id: str = None):

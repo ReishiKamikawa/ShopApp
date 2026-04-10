@@ -16,9 +16,16 @@ class Settings(BaseSettings):
 
     # App
     debug: bool = True
+    
+    # Email/SMTP
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 465
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()

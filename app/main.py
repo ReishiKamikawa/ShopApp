@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from app.db.mongodb import connect_to_mongo, close_mongo_connection
 from app.db.redis import connect_to_redis, close_redis_connection
 from app.api.routes import auth, products, orders, reviews, cart
+from app.middleware.rate_limit_middleware import RateLimitMiddleware
 
 
 @asynccontextmanager
@@ -27,6 +28,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Add RateLimitMiddleware
+app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
 
 # Include routers
 app.include_router(auth.router)

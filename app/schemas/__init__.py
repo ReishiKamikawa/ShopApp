@@ -18,6 +18,19 @@ PyObjectId = Annotated[
 
 
 # User schemas
+class UserVerifyOTP(BaseModel):
+    email: str = Field(..., example="john@example.com", description="User email")
+    otp_code: str = Field(..., example="123456", description="6-digit OTP code")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "john@example.com",
+                "otp_code": "123456"
+            }
+        }
+
+
 class UserCreate(BaseModel):
     email: str = Field(..., example="john@example.com", description="User email address")
     password: str = Field(..., example="password123", description="User password (min 6 characters)")
@@ -53,6 +66,7 @@ class UserResponse(BaseModel):
     email: str = Field(..., example="john@example.com")
     name: str = Field(..., example="John Doe")
     role: str = Field(..., example="user")
+    is_verified: bool = Field(default=False, example=True)
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
     model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
