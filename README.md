@@ -1,237 +1,195 @@
-# ShopApp - E-Commerce Mini Backend System
+# ShopApp - Production-Grade E-Commerce Backend
 
-A fully functional e-commerce backend API built with FastAPI, MongoDB, and Redis.
+A robust, production-oriented backend for an online store built with **FastAPI**, **MongoDB**, and **Redis**. This system is designed with a focus on **SOLID principles**, **Clean Architecture**, and **High Performance**.
+
+---
+
+## 🚀 Project Goals
+
+The objective of ShopApp is to provide a highly extensible and maintainable e-commerce engine that supports:
+- **Async Operations**: 100% non-blocking I/O using FastAPI and Motor.
+- **Data Consistency**: ACID transactions for critical flows like order processing.
+- **Scalability**: Decoupled background workers and event-driven architecture.
+- **Advanced Features**: Caching, Rate Limiting, Pub/Sub, and Audit Logging.
+
+---
+
+## 🏗 System Architecture
+
+The project follows a strict **Layered Separation** pattern to ensure modularity and ease of testing:
+
+```text
+Client
+  |
+  v
+FastAPI (Controller Layer)
+  | ───> Thin controllers, request validation, response formatting.
+  v
+Service Layer
+  | ───> Business rules, Transaction orchestration, Pub/Sub publishing.
+  v
+Repository Layer
+  | ───> Direct MongoDB access, generic CRUD logic.
+  v
+Infrastructure Layer
+  |
+  +--> MongoDB (Replica Set REQUIRED for Transactions)
+  |
+  +--> Redis (Cache Aside, Pub/Sub, Rate Limiting)
+         |
+         v
+   Worker / Background Jobs (Email, Event processing)
+```
+
+### Core Design Principles (SOLID)
+- **Single Responsibility**: Each class/function has one job.
+- **Open/Closed**: Entities are open for extension but closed for modification.
+- **Liskov Substitution**: Derived classes are replaceable by their base classes.
+- **Interface Segregation**: Clients don't depend on methods they don't use (e.g., generic Controller Interface).
+- **Dependency Inversion**: High-level modules don't depend on low-level modules; both depend on abstractions.
+
+---
+
+## 🛠 Tech Stack
+
+| Component | Technology | Description |
+|-----------|------------|-------------|
+| **Language** | Python 3.10+ | Utilizing async/await features. |
+| **Framework** | FastAPI | High performance, based on Starlette and Pydantic. |
+| **Database** | MongoDB 6.0 | Document-oriented with Replica Set for transactions. |
+| **DB Driver** | Motor | Async Python driver for MongoDB. |
+| **Cache/Queue**| Redis | Caching, Pub/Sub, and Rate Limiting. |
+| **Auth** | JWT / Bcrypt | Secure token-based auth and password hashing. |
+| **Deployment** | Docker & Compose | Containerized environment and orchestration. |
+
+---
+
+## 💾 Database Design & Rationale
+
+### Relationship Strategy: Why the Choices?
+
+Our MongoDB design balances **Data Integrity** with **Read Performance**:
+
+1.  **Order → Product (Embedded Snapshot)**:
+    - **Choice**: When an order is placed, we embed a snapshot of the product (name, price) into the order document.
+    - **Why**: Purchase history must be **immutable**. If a product's price changes or it is deleted in the future, the order record remains an accurate historical "truth" of what was purchased.
+
+2.  **Cart → Product (Referential)**:
+    - **Choice**: The cart only stores `product_id` and `quantity`.
+    - **Why**: Carts are dynamic and transient. Referencing ensures we always show the current price and stock status until the moment of checkout.
+
+3.  **Review → User/Product (Referential)**:
+    - **Choice**: Reviews refer to users and products by ID.
+    - **Why**: This minimizes data duplication and provides maximum query flexibility (e.g., "Find all reviews by this user" or "Find all reviews for this product").
+
+### Indexing Strategy
+- **Unique**: `users.email`, `carts.user_id`, and a compound unique index `reviews(user_id, product_id)` to ensure one review per user/product.
+- **Performance**: Text index on `products.name` for search, and indexes on `created_at` or foreign keys for fast filtering/joins.
+
+---
+
+## ⚙️ Core Business Logic
+
+### 🔐 ACID Transactions (Order Flow)
+To prevent data corruption, the order creation process is wrapped in a **MongoDB multi-document transaction**:
+1. Validate product existence & stock.
+2. **Decrease stock atomically** (using conditional updates).
+3. Create Order document with product snapshots.
+4. Clear User Cart.
+5. *Commit if all steps succeed; rollback otherwise.*
+
+### 🛡 Anti-Oversell Strategy
+We use **Atomic Conditional Updates**:
+```python
+# Pseudo-code
+db.products.update_one(
+    {"_id": pid, "stock": {"$gte": requested_qty}},
+    {"$inc": {"stock": -requested_qty}}
+)
+```
+If the update count is 0, the order is rejected immediately, ensuring we never sell more than we have.
+
+---
+
+## 🌟 Advanced Features
+
+### ⚡ Redis Caching (Cache Aside)
+- **Patterns**: `GET /products/{id}` and paginated lists are cached.
+- **TTL**: 60 seconds.
+- **Invalidation**: On any `update` or `delete` operation, the corresponding cache keys are purged immediately to ensure data freshness.
+
+### 📡 Event-Driven System (Pub/Sub)
+We decouple side effects from request handlers:
+- **Events**: `order.created`, `user.registered`, `product.updated`.
+- **Publisher**: Triggered after successful DB commit.
+- **Worker**: A separate process consumes these events to handle non-blocking tasks (e.g., sending emails, updating statistics).
+
+### 🚦 Rate Limiting
+Redis-based throttling protects sensitive endpoints:
+- **Login**: Strict limits by IP.
+- **Write Actions**: Limits per User ID.
+- **Error Response**: HTTP 429 when limits are exceeded.
+
+---
+
+## 📋 Audit Logging
+Every major data mutation (`create`, `update`, `delete`) is recorded in the `audit_logs` collection:
+- **Who**: Actor ID and Role.
+- **What**: Action and Resource Type.
+- **Changes**: `before` and `after` state snapshots (where applicable).
+- **Context**: IP address, Request ID, and User Agent.
+
+---
 
 ## 🚀 Quick Start
 
-### Run on Docker
-```bash
-docker-compose up -d
-```
+### 🐳 Using Docker (Recommended)
+1. **Launch Environment**:
+   ```bash
+   docker-compose up -d
+   ```
+2. **Initiate Replica Set** (Required for Transactions):
+   ```bash
+   docker exec shopapp-mongo mongosh --eval "rs.initiate()"
+   ```
+3. **Seed Test Data**:
+   ```bash
+   docker exec shopapp-api python seed_data.py
+   ```
 
-### Seed Test Data
-```bash
-docker exec shopapp-api python seed_data.py
-```
-
-### Access API
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-- **Health Check**: http://localhost:8000/health
-
----
-
-## 📋 Test Credentials
-
-Use these to test authenticated endpoints in Swagger UI:
-
-```
-User 1:
-  Email: user1@example.com
-  Password: password123
-
-User 2:
-  Email: user2@example.com
-  Password: password456
-```
+### 💻 Local Development
+1. **Install Dependencies**: `pip install -r requirements.txt`
+2. **Environment**: Copy `.env.example` to `.env` and configure your credentials.
+3. **Run**: `uvicorn app.main:app --reload`
 
 ---
 
-## 🧪 All API Endpoints - Ready for Testing
+## 📖 API Documentation
 
-### Authentication
-- ✅ `POST /auth/register` - Register new user
-- ✅ `POST /auth/login` - Login & get JWT token
+Once running, access the interactive documentation at:
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-### Products
-- ✅ `GET /products` - List all products (paginated)
-- ✅ `GET /products/{id}` - Get single product
-- ✅ `POST /products` - Create new product
-- ✅ `PATCH /products/{id}` - Update product
-- ✅ `DELETE /products/{id}` - Delete product
-
-### Cart (Requires Auth)
-- ✅ `GET /cart` - View your cart
-- ✅ `POST /cart/add` - Add item to cart
-- ✅ `POST /cart/remove` - Remove item from cart
-
-### Orders (Requires Auth)
-- ✅ `GET /orders` - List your orders
-- ✅ `GET /orders/{id}` - Get order details
-- ✅ `POST /orders` - Create order from cart
-
-### Reviews
-- ✅ `GET /reviews` - List all reviews
-- ✅ `GET /reviews/{id}` - Get review details
-- ✅ `GET /reviews/product/{product_id}` - Get product reviews
-- ✅ `POST /reviews` - Create review (Requires Auth)
-- ✅ `DELETE /reviews/{id}` - Delete review
+### Key Endpoints
+| Category | Routes |
+|----------|--------|
+| **Auth** | `POST /auth/register`, `POST /auth/login` |
+| **Products** | `GET /products`, `POST /products`, `PATCH /products/{id}` |
+| **Cart** | `GET /cart`, `POST /cart/add`, `POST /cart/remove` |
+| **Orders** | `POST /orders`, `GET /orders/{id}` |
+| **Reviews** | `GET /reviews`, `POST /reviews` |
 
 ---
 
-## 📊 Seeded Test Data
-
-**5 Products:**
-1. Laptop Pro - $1,499.99
-2. Wireless Mouse - $29.99
-3. USB-C Hub - $49.99
-4. Mechanical Keyboard - $149.99
-5. 4K Monitor - $599.99
-
-**Pre-created Resources:**
-- 2 test users with carts
-- 2 sample orders
-- 5 product reviews
-
----
-
-## 🧑‍💻 Testing Examples
-
-### 1. Login & Get Token
-```bash
-curl -X POST http://localhost:8000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user1@example.com",
-    "password": "password123"
-  }'
-```
-
-### 2. Add to Cart
-```bash
-curl -X POST http://localhost:8000/cart/add \
-  -H "Authorization: Bearer <YOUR_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "product_id": "PRODUCT_ID",
-    "quantity": 2
-  }'
-```
-
-### 3. Create Order
-```bash
-curl -X POST http://localhost:8000/orders \
-  -H "Authorization: Bearer <YOUR_TOKEN>"
-```
-
-### 4. Leave Review
-```bash
-curl -X POST http://localhost:8000/reviews \
-  -H "Authorization: Bearer <YOUR_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "product_id": "PRODUCT_ID",
-    "rating": 5,
-    "comment": "Great product!"
-  }'
-```
-
----
-
-## 📖 Detailed Documentation
-
-See [API_TESTING_GUIDE.md](API_TESTING_GUIDE.md) for:
-- ✅ Successful test cases
-- ❌ Failure test cases
-- 🔑 Authentication flows
-- 🧪 Complete testing scenarios
-- 📋 Expected status codes
-
----
-
-## 🐳 Docker Services
-
-| Service | Port | Status |
-|---------|------|--------|
-| FastAPI | 8000 | ✅ Running |
-| MongoDB | 27017 | ✅ Running |
-| Redis | 6379 | ✅ Running |
-| Worker | — | ✅ Running |
-
----
-
-## 📁 Project Structure
-
-```
-ShopApp/
-├── app/
-│   ├── api/routes/          # API endpoints
-│   ├── services/            # Business logic
-│   ├── repositories/        # Data access
-│   ├── controllers/         # Request handling
-│   ├── db/                  # Database connections
-│   ├── core/                # Config & security
-│   ├── schemas/             # Pydantic models
-│   └── main.py              # FastAPI app
-├── docker-compose.yml       # Container orchestration
-├── Dockerfile               # Container image
-├── requirements.txt         # Python dependencies
-├── seed_data.py            # Database seeding script
-└── API_TESTING_GUIDE.md    # Comprehensive testing guide
-```
-
----
-
-## 🔧 Development
-
-### Install Locally
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### Run Locally (with Docker MongoDB/Redis)
-```bash
-# Start only MongoDB and Redis
-docker-compose up -d mongodb redis
-
-# Run app
-uvicorn app.main:app --reload
-```
-
----
-
-## ✨ Features
-
-✅ User authentication with JWT
-✅ Product management (CRUD)
-✅ Shopping cart functionality
-✅ Order creation and tracking
-✅ Product reviews and ratings
-✅ MongoDB database with async operations
-✅ Redis caching
-✅ Comprehensive error handling
-✅ Full API documentation with Swagger
-✅ Input validation with Pydantic
-✅ Example data and test cases
-
----
-
-## 🚦 Status Codes
-
-| Code | Meaning |
-|------|---------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Bad Request |
-| 401 | Unauthorized |
-| 404 | Not Found |
-| 500 | Server Error |
-
----
-
-## 📞 Support
-
-All endpoints are documented in Swagger UI at http://localhost:8000/docs
-
-Each endpoint includes:
-- ✅ Successful examples
-- ❌ Failure cases
-- 📝 Parameter descriptions
-- 📊 Response schemas
+## 🔒 Security Summary
+- **JWT Authentication** (HS256)
+- **Role-Based Access Control** (Admin, Shop, User)
+- **Password Hashing** via Bcrypt
+- **Rate Limiting** to prevent brute force
+- **Input Validation** via Pydantic models
 
 ---
 
 **Version**: 1.0.0  
-**Last Updated**: April 2026
+**Status**: Production-Ready  
+**Maintainer**: Reishi Kamikawa 

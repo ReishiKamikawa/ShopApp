@@ -33,3 +33,4 @@ test_simple.py
 .env
 /results
 test_email_only.py
+test_e2e_flow.py

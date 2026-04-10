@@ -71,10 +71,15 @@ async def get_review(
     - Non-existent review ID: Returns 404
     - Invalid review ID format: Returns 400
     """
-    review = await service.get_review_by_id(review_id)
-    if not review:
-        raise HTTPException(status_code=404, detail="Review not found")
-    return review
+    try:
+        review = await service.get_review_by_id(review_id)
+        if not review:
+            raise HTTPException(status_code=404, detail="Review not found")
+        return review
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid review ID format")
 
 
 @router.get("", response_model=list, summary="List all reviews")

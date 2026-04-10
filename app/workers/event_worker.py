@@ -11,10 +11,11 @@ import os
 
 
 def send_real_email(to_email: str, subject: str, html_content: str):
-    sender_email = os.getenv("SMTP_USER")
-    sender_password = os.getenv("SMTP_PASSWORD")
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", "465"))
+    from app.core.config import settings
+    sender_email = settings.smtp_user
+    sender_password = settings.smtp_password
+    smtp_host = settings.smtp_host
+    smtp_port = settings.smtp_port
     
     if not sender_email or not sender_password:
         print(f"⚠️ [Email Warning] SMTP missing in .env (SMTP_USER/SMTP_PASSWORD). Skipping real email to {to_email}.")

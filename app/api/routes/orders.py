@@ -71,6 +71,9 @@ async def get_order(
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
         return order
+    except HTTPException:
+        # Re-raise FastApi's HTTPException so it's not caught by the broad Exception block
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid order ID format: {str(e)}")
     except Exception as e:
