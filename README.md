@@ -41,13 +41,6 @@ Infrastructure Layer
    Worker / Background Jobs (Email, Event processing)
 ```
 
-### Core Design Principles (SOLID)
-- **Single Responsibility**: Each class/function has one job.
-- **Open/Closed**: Entities are open for extension but closed for modification.
-- **Liskov Substitution**: Derived classes are replaceable by their base classes.
-- **Interface Segregation**: Clients don't depend on methods they don't use (e.g., generic Controller Interface).
-- **Dependency Inversion**: High-level modules don't depend on low-level modules; both depend on abstractions.
-
 ---
 
 ## 🛠 Tech Stack
@@ -59,7 +52,7 @@ Infrastructure Layer
 | **Database** | MongoDB 6.0 | Document-oriented with Replica Set for transactions. |
 | **DB Driver** | Motor | Async Python driver for MongoDB. |
 | **Cache/Queue**| Redis | Caching, Pub/Sub, and Rate Limiting. |
-| **Auth** | JWT / Bcrypt | Secure token-based auth and password hashing. |
+| **Auth** | JWT / PBKDF2 | Secure token-based auth and defensive password hashing. |
 | **Deployment** | Docker & Compose | Containerized environment and orchestration. |
 
 ---
@@ -134,44 +127,89 @@ Redis-based throttling protects sensitive endpoints:
 
 ## 📋 Audit Logging
 Every major data mutation (`create`, `update`, `delete`) is recorded in the `audit_logs` collection:
-- **Who**: Actor ID and Role.
+- **Who**: Actor ID.
 - **What**: Action and Resource Type.
 - **Changes**: `before` and `after` state snapshots (where applicable).
 - **Context**: IP address, Request ID, and User Agent.
 
 ---
 
-## 🚀 Quick Start
+## ⚙️ Installation & Setup Guide
+
+### Prerequisites
+- **Docker & Docker Compose** (Highly Recommended)
+- **Python 3.10+** (For local development)
+- **Git**
 
 ### 🐳 Using Docker (Recommended)
-1. **Launch Environment**:
-   ```bash
-   docker-compose up -d
-   ```
-2. **Initiate Replica Set** (Required for Transactions):
-   ```bash
-   docker exec shopapp-mongo mongosh --eval "rs.initiate()"
-   ```
-3. **Seed Test Data**:
-   ```bash
-   docker exec shopapp-api python seed_data.py
-   ```
+This is the fastest way to get ShopApp running with all its dependencies (MongoDB Replica Set & Redis).
+
+1.  **Clone the Repository**:
+    ```bash
+    git clone https://github.com/ReishiKamikawa/ShopApp.git
+    cd ShopApp
+    ```
+2.  **Launch Environment**:
+    ```bash
+    docker-compose up -d
+    ```
+3.  **Initialize MongoDB Replica Set** (Required for ACID Transactions):
+    ```bash
+    docker exec shopapp-mongo mongosh --eval "rs.initiate()"
+    ```
+4.  **Seed Initial Data** (Optional):
+    ```bash
+    docker exec shopapp-api python seed_data.py
+    ```
 
 ### 💻 Local Development
-1. **Install Dependencies**: `pip install -r requirements.txt`
-2. **Environment**: Copy `.env.example` to `.env` and configure your credentials.
-3. **Run**: `uvicorn app.main:app --reload`
+If you prefer running the API locally while using Docker for infrastructure:
+
+1.  **Create Virtual Environment**:
+    ```bash
+    python -m venv .venv
+    .venv\Scripts\activate  # Windows
+    source .venv/bin/activate  # macOS/Linux
+    ```
+2.  **Install Dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Setup Environment**:
+    Copy `.env.example` to `.env` and configure accordingly.
+4.  **Start Infrastructure**:
+    ```bash
+    docker-compose up -d mongodb redis
+    docker exec shopapp-mongo mongosh --eval "rs.initiate()"
+    ```
+5.  **Run FastAPI**:
+    ```bash
+    uvicorn app.main:app --reload
+    ```
 
 ---
 
-## 📖 API Documentation
+## 📖 API Documentation & Testing
 
-Once running, access the interactive documentation at:
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+ShopApp provides multiple ways to explore and test the API:
 
-### Key Endpoints
-| Category | Routes |
+### 1. Interactive Documentation
+Once the server is running, you can access:
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs) - Full interactive explorer.
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc) - Clean, searchable documentation.
+- **OpenAPI JSON**: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
+
+### 2. Postman Collection
+For professional manual testing, we provide a pre-configured Postman collection:
+- **File**: `ShopApp_Postman_Collection.json`
+- **How to use**:
+  1. Open Postman.
+  2. Click **Import** and select the [ShopApp_Postman_Collection.json](./ShopApp_Postman_Collection.json) file.
+  3. The collection includes all major flows (Auth, Products, Cart, Orders, Reviews).
+  4. Use the `login` request first to obtain a JWT, which is automatically configured for subsequent requests.
+
+### Key Endpoint Groups
+| Category | Primary Routes |
 |----------|--------|
 | **Auth** | `POST /auth/register`, `POST /auth/login` |
 | **Products** | `GET /products`, `POST /products`, `PATCH /products/{id}` |
@@ -181,12 +219,12 @@ Once running, access the interactive documentation at:
 
 ---
 
-## 🔒 Security Summary
-- **JWT Authentication** (HS256)
-- **Role-Based Access Control** (Admin, Shop, User)
-- **Password Hashing** via Bcrypt
-- **Rate Limiting** to prevent brute force
-- **Input Validation** via Pydantic models
+## 🔒 Security & Validation
+- **JWT Authentication**: Secure stateless authentication using HS256 algorithm.
+- **Password Security**: Defensive hashing using PBKDF2 with automatic salt management.
+- **Request Throttling**: Redis-based rate limiting to prevent brute-force attacks on sensitive endpoints.
+- **Data Integrity**: Strict input validation and serialization using Pydantic models.
+- **Resource Isolation**: Built-in ownership checks ensuring users can only access their own carts and orders.
 
 ---
 
